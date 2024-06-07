@@ -3,6 +3,8 @@ package main
 import (
 	// "fmt"
 
+	"fmt"
+
 	"example.com/pricecalculator/cmdmanager"
 	// "example.com/pricecalculator/filemanager"
 	"example.com/pricecalculator/prices"
@@ -11,13 +13,15 @@ import (
 func main() {
 	taxRates := []float64{0, 0.07, 0.1, 0.15}
 	doneChans := make([]chan bool, len(taxRates))
+	errorChans := make([]chan error, len(taxRates))
 
 	for index, taxRate := range taxRates {
-		doneChans[index] =make(chan bool)
+		doneChans[index] = make(chan bool)
+		errorChans[index] = make(chan error)
 		// fm := filemanager.New("prices.txt", fmt.Sprintf("result_%.0f.json", taxRate*100))
 		cmdm := cmdmanager.New()
 		priceJob := prices.NewTaxIncludedPriceJob(cmdm, taxRate)
-		go priceJob.Process(doneChans[index])
+		go priceJob.Process(doneChans[index], errorChans[index])
 
 		// if err != nil {
 		// 	fmt.Println("Could not process job")
@@ -25,8 +29,15 @@ func main() {
 		// }
 	}
 
-	for _,doneChan :=range doneChans{
-		<-doneChan
+	for index := range taxRates {
+		select {
+		case err := <-errorChans[index]:
+			if err != nil {
+				fmt.Println(err)
+			}
+		case <-doneChans[index]:
+			fmt.Println("Done")
+		}
 	}
 
 }
